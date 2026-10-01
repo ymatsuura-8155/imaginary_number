@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>虚数と3D回転（クォータニオン）インタラクティブラボ</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Three.js and OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- KaTeX for crisp mathematical formulas -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0b0f19;
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    /* Glow highlights */
+    .glow-cyan {
+      box-shadow: 0 0 15px -3px rgba(6, 182, 212, 0.4);
+    }
+    .glow-indigo {
+      box-shadow: 0 0 15px -3px rgba(99, 102, 241, 0.4);
+    }
+    .panel-backdrop {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    /* Light Mode Overrides */
+    body.light-mode {
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    body.light-mode header {
+      background-color: rgba(255, 255, 255, 0.9);
+      border-color: #e2e8f0;
+    }
+    body.light-mode header h1 {
+      color: #0f172a;
+    }
+    body.light-mode .panel-backdrop,
+    body.light-mode main > div:last-child {
+      background-color: rgba(255, 255, 255, 0.95);
+      border-color: #e2e8f0;
+      color: #1e293b;
+    }
+    body.light-mode .bg-slate-900,
+    body.light-mode .bg-slate-950,
+    body.light-mode .bg-slate-900\/80,
+    body.light-mode .bg-slate-950\/60 {
+      background-color: #f1f5f9 !important;
+      border-color: #cbd5e1 !important;
+      color: #1e293b !important;
+    }
+    body.light-mode .text-slate-200,
+    body.light-mode .text-slate-300,
+    body.light-mode .text-slate-100 {
+      color: #0f172a !important;
+    }
+    body.light-mode .text-slate-400 {
+      color: #475569 !important;
+    }
+    body.light-mode #canvasContainer {
+      background-color: #f1f5f9;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col h-screen select-none">
+
+  <!-- Header -->
+  <header class="h-14 border-b border-slate-800 bg-slate-900/90 backdrop-blur px-4 flex items-center justify-between z-20 shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-lg shadow-cyan-500/20">
+        <i>i</i>
+      </div>
+      <div>
+        <h1 class="font-bold text-sm sm:text-base tracking-wide flex items-center gap-2">
+          虚数と3D回転シミュレーター
+          <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-cyan-950/80 border border-cyan-500/30 text-cyan-400">Quaternion & 3D Math</span>
+        </h1>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-2">
+      <!-- Mode Tabs -->
+      <div class="flex bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs font-semibold">
+        <button id="tab3D" class="px-3 py-1.5 rounded-md bg-cyan-600 text-white transition flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-cube"></i> 3D四元数 ($i, j, k$)
+        </button>
+        <button id="tab2D" class="px-3 py-1.5 rounded-md text-slate-400 hover:text-white transition flex items-center gap-1.5">
+          <i class="fa-solid fa-circle-notch"></i> 2D複素平面 ($i$)
+        </button>
+      </div>
+
+      <!-- Theme Switch Button -->
+      <button id="themeToggleBtn" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition" title="ライトモードに切替">
+        <i id="themeIcon" class="fa-solid fa-sun text-amber-400 text-base"></i>
+      </button>
+
+      <button id="infoModalBtn" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition" title="数学の解説を読む">
+        <i class="fa-solid fa-circle-question text-lg"></i>
+      </button>
+    </div>
+  </header>
+
+  <main class="flex-1 relative flex flex-col lg:flex-row overflow-hidden">
+    
+    <!-- 3D Canvas Canvas Container -->
+    <div id="canvasContainer" class="flex-1 relative w-full h-[50vh] lg:h-full bg-slate-950 overflow-hidden">
+      <canvas id="threeCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+
+      <!-- Overlay tips -->
+      <div class="absolute top-4 left-4 pointer-events-none flex flex-col gap-1.5 z-10">
+        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-900/80 border border-slate-700/60 backdrop-blur text-xs text-slate-300">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          ドラッグで視点回転 / スクロールでズーム
+        </div>
+        <div class="text-[11px] text-slate-400 flex items-center gap-3 px-2">
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-red-500"></span> X (赤)</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-green-500"></span> Y (緑)</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-blue-500"></span> Z (青)</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-amber-400"></span> 回転軸 $\vec{v}$</span>
+        </div>
+      </div>
+
+      <!-- Quick Playback / Reset Toolbar on Canvas -->
+      <div class="absolute bottom-4 left-4 z-10 flex items-center gap-2">
+        <button id="btnPlayPause" class="px-3.5 py-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-xs font-medium text-slate-200 backdrop-blur transition flex items-center gap-2 shadow-lg">
+          <i id="playIcon" class="fa-solid fa-play text-cyan-400"></i>
+          <span id="playText">自動回転</span>
+        </button>
+        <button id="btnResetRot" class="px-3.5 py-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-xs font-medium text-slate-200 backdrop-blur transition flex items-center gap-1.5 shadow-lg" title="回転角を0度にリセット">
+          <i class="fa-solid fa-rotate-left"></i> リセット
+        </button>
+      </div>
+
+      <!-- 2D Complex Plane Overlay (hidden by default) -->
+      <div id="complexPlaneOverlay" class="absolute inset-0 bg-slate-950/95 hidden flex-col items-center justify-center p-6 z-10">
+        <div class="max-w-2xl w-full flex flex-col items-center">
+          <div class="flex items-center justify-between w-full mb-3">
+            <h3 class="font-bold text-cyan-400 text-sm flex items-center gap-2">
+              <i class="fa-solid fa-diagram-project"></i> 2次元複素平面での回転：$z \times e^{i\theta} = z(\cos\theta + i\sin\theta)$
+            </h3>
+            <span class="text-xs text-slate-400">円上をドラッグして回転</span>
+          </div>
+
+          <div class="relative bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl flex items-center justify-center">
+            <svg id="svgComplexPlane" width="340" height="340" class="touch-none cursor-pointer">
+              <!-- Grid & axes will be drawn dynamically -->
+            </svg>
+          </div>
+
+          <div class="mt-4 grid grid-cols-2 gap-3 w-full max-w-md text-xs mono">
+            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+              <div class="text-slate-400">実部 $\text{Re}(z) = \cos\theta$</div>
+              <div id="compRealVal" class="text-cyan-400 font-bold text-base mt-0.5">1.000</div>
+            </div>
+            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+              <div class="text-slate-400">虚部 $\text{Im}(z) = \sin\theta$</div>
+              <div id="compImagVal" class="text-pink-400 font-bold text-base mt-0.5">0.000</div>
+            </div>
+          </div>
+          <p class="text-xs text-slate-400 mt-3 text-center leading-relaxed">
+            虚数単位 $i$ を掛けることは「反時計回りに90°回転」を意味します。<br>
+            これを3次元空間の任意軸回転に発展させたものがハミルトンの<b>四元数（Quaternion）</b>です。
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Control & Mathematical Inspection Dashboard (Right side on desktop, bottom on mobile) -->
+    <div class="w-full lg:w-[460px] border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-900/90 backdrop-blur flex flex-col h-[50vh] lg:h-full shrink-0 overflow-y-auto">
+      
+      <!-- Live Quaternion Formula Display Box -->
+      <div class="p-4 border-b border-slate-800/80 bg-slate-950/60 sticky top-0 z-10">
+        <div class="flex items-center justify-between mb-2">
+          <div class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-calculator text-cyan-400"></i> 計算中の四元数 $q$
+          </div>
+          <div class="text-[11px] mono text-cyan-300 font-medium px-2 py-0.5 rounded bg-cyan-950/70 border border-cyan-700/50">
+            $|q| = \sqrt{w^2+x^2+y^2+z^2} = 1.000$
+          </div>
+        </div>
+
+        <!-- Rendered mathematical expression -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 shadow-inner">
+          <div id="mathEquation" class="text-center overflow-x-auto py-1 text-sm md:text-base text-slate-100 font-serif">
+            <!-- KaTeX will render here -->
+          </div>
+        </div>
+
+        <!-- Quaternion 4-Components Live Grid -->
+        <div class="grid grid-cols-4 gap-2 mt-3 text-center mono">
+          <div class="bg-slate-900/80 border border-slate-800 rounded-lg p-2 transition">
+            <span class="text-[10px] text-slate-400 block font-sans">実部 (スカラー)</span>
+            <span class="text-xs font-bold text-amber-400 block">w</span>
+            <span id="valW" class="text-sm font-semibold text-slate-200">1.000</span>
+          </div>
+          <div class="bg-slate-900/80 border border-red-950/50 rounded-lg p-2 transition">
+            <span class="text-[10px] text-red-400 block font-sans">虚数部 $i$</span>
+            <span class="text-xs font-bold text-red-400 block">x</span>
+            <span id="valX" class="text-sm font-semibold text-slate-200">0.000</span>
+          </div>
+          <div class="bg-slate-900/80 border border-green-950/50 rounded-lg p-2 transition">
+            <span class="text-[10px] text-green-400 block font-sans">虚数部 $j$</span>
+            <span class="text-xs font-bold text-green-400 block">y</span>
+            <span id="valY" class="text-sm font-semibold text-slate-200">0.000</span>
+          </div>
+          <div class="bg-slate-900/80 border border-blue-950/50 rounded-lg p-2 transition">
+            <span class="text-[10px] text-blue-400 block font-sans">虚数部 $k$</span>
+            <span class="text-xs font-bold text-blue-400 block">z</span>
+            <span id="valZ" class="text-sm font-semibold text-slate-200">0.000</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls & Parameters Section -->
+      <div class="p-4 space-y-5">
+
+        <!-- Rotation Angle Slider -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-xs font-semibold">
+            <label for="sliderTheta" class="text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-arrows-rotate text-cyan-400"></i> 回転角 $\theta$
+            </label>
+            <span class="mono text-cyan-300 text-sm font-bold"><span id="lblTheta">0</span>° (<span id="lblHalfTheta">0</span>° / 半角)</span>
+          </div>
+          <input id="sliderTheta" type="range" min="0" max="360" value="0" step="1" 
+                 class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+          <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+            <span>0°</span>
+            <span>90°</span>
+            <span>180°</span>
+            <span>270°</span>
+            <span>360°</span>
+          </div>
+        </div>
+
+        <!-- Axis Presets and Custom Vector -->
+        <div class="space-y-3">
+          <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+            <span class="flex items-center gap-1.5">
+              <i class="fa-solid fa-compass text-amber-400"></i> 回転軸ベクトル $\vec{v} = (v_x, v_y, v_z)$
+            </span>
+            <span id="lblAxisNormalized" class="text-[10px] mono text-slate-400">単位ベクトル正規化済</span>
+          </label>
+
+          <!-- Quick Preset Buttons -->
+          <div class="grid grid-cols-4 gap-2 text-xs font-medium">
+            <button class="btn-preset py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 active:scale-95 transition" data-axis="1,0,0">
+              X軸 (ピッチ)
+            </button>
+            <button class="btn-preset py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 active:scale-95 transition" data-axis="0,1,0">
+              Y軸 (ヨー)
+            </button>
+            <button class="btn-preset py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 active:scale-95 transition" data-axis="0,0,1">
+              Z軸 (ロール)
+            </button>
+            <button class="btn-preset py-1.5 rounded-lg border border-cyan-800/60 bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 active:scale-95 transition" data-axis="1,1,1">
+              斜め (1, 1, 1)
+            </button>
+          </div>
+
+          <!-- Axis Sliders -->
+          <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3 space-y-2.5">
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-bold text-red-400 w-6">v_x:</span>
+              <input id="sliderVx" type="range" min="-1" max="1" value="0" step="0.05" class="flex-1 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-red-400">
+              <span id="lblVx" class="text-xs mono w-10 text-right text-slate-300">0.00</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-bold text-green-400 w-6">v_y:</span>
+              <input id="sliderVy" type="range" min="-1" max="1" value="1" step="0.05" class="flex-1 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-green-400">
+              <span id="lblVy" class="text-xs mono w-10 text-right text-slate-300">1.00</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-bold text-blue-400 w-6">v_z:</span>
+              <input id="sliderVz" type="range" min="-1" max="1" value="0" step="0.05" class="flex-1 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-400">
+              <span id="lblVz" class="text-xs mono w-10 text-right text-slate-300">0.00</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Breakdown Explanation Card -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 space-y-2 text-xs leading-relaxed text-slate-300">
+          <div class="font-bold text-cyan-300 flex items-center gap-1.5">
+            <i class="fa-solid fa-lightbulb"></i> なぜ角度が「$\theta/2$ (半角)」なのか？
+          </div>
+          <p>
+            3D空間の点 $p$ を回転させるとき、四元数では共役クォータニオン $q^*$ を使って両側から挟み込む演算（サンドイッチ積）を行います。
+          </p>
+          <div class="bg-slate-950 p-2 rounded-lg mono text-center text-cyan-200 border border-slate-800 text-[11px]">
+            $p' = q \cdot p \cdot q^{-1}$
+          </div>
+          <p class="text-slate-400">
+            $q$ で一度掛け算すると $\theta/2$ 回転し、$q^{-1}$ を反対側から掛けることでさらに $\theta/2$ 回転し、合計で**ちょうど $\theta$ 回転**します。この「2回掛け算」の構造により、3D空間特有の歪みなく回転だけを取り出せます。
+          </p>
+        </div>
+
+        <!-- Euler Angle Gimbal Lock comparison note -->
+        <div class="border border-indigo-950/60 bg-indigo-950/20 rounded-xl p-3 text-xs text-indigo-200 flex items-start gap-2.5">
+          <i class="fa-solid fa-shield-halved text-indigo-400 mt-0.5 text-sm"></i>
+          <div>
+            <span class="font-bold text-indigo-300 block mb-0.5">ジンバルロックを完全に回避できる理由</span>
+            クォータニオンは3軸の順序付き回転ではなく、任意の1本の回転軸 $\vec{v}$ まわりの回転として1ステップで表現されるため、オイラー角のように「特定の角度で軸が重なって回転自由度が消失するバグ」が数学的に一切起こりません。
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- Educational Info Modal -->
+  <div id="infoModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-graduation-cap text-cyan-400"></i> 虚数 $i$ から 3D回転への架け橋
+        </h2>
+        <button id="closeModalBtn" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="text-xs text-slate-300 space-y-3 leading-relaxed">
+        <h3 class="font-bold text-cyan-300 text-sm">1. 虚数 $i$ は「回転のスイッチ」</h3>
+        <p>
+          高校数学で「$i^2 = -1$」と習う虚数は、数直線上にある「$1$」を反時計回りに90°回して虚軸上の「$i$」にし、もう一度90°回して「$-1$」にするという**回転操作**そのものです。
+        </p>
+
+        <h3 class="font-bold text-cyan-300 text-sm">2. ハミルトンの大発見：3次元の虚数単位 $i, j, k$</h3>
+        <p>
+          アイルランドの数学者ハミルトンは、2次元平面の虚数 $i$ を3次元へ拡張しようと10年以上苦闘した末、3次元空間の回転を記述するには**3つの虚数単位 $(i, j, k)$ と1つの実数**、計4つの数（四元数）が必要であることに気づきました。
+        </p>
+        <div class="bg-slate-950 p-2.5 rounded-lg mono text-center text-amber-300 border border-slate-800 text-[11px]">
+          $i^2 = j^2 = k^2 = ijk = -1$
+        </div>
+
+        <h3 class="font-bold text-cyan-300 text-sm">3. 実社会での活躍分野</h3>
+        <ul class="list-disc pl-5 space-y-1 text-slate-400">
+          <li><b>ゲームエンジン・メタバース</b>: Unity, Unreal Engine などの3Dキャラやカメラ制御</li>
+          <li><b>航空宇宙工学</b>: ロケット・人工衛星・ドローンの姿勢制御・自動航行</li>
+          <li><b>ロボットアーム</b>: 産業用多関節ロボットの手先姿勢追従</li>
+          <li><b>スマートフォン</b>: 内蔵ジャイロセンサーによるスマホの向きの追跡</li>
+        </ul>
+      </div>
+
+      <div class="pt-2">
+        <button id="closeModalBottomBtn" class="w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-xl text-xs transition">
+          理解できた！シミュレーターに戻る
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Global Application State ---
+    const state = {
+      thetaDeg: 0,
+      axis: new THREE.Vector3(0, 1, 0).normalize(),
+      isPlaying: false,
+      activeTab: '3d', // '3d' or '2d'
+      complexAngleDeg: 0,
+      isDark: true
+    };
+
+    // --- DOM Elements ---
+    const sliderTheta = document.getElementById('sliderTheta');
+    const lblTheta = document.getElementById('lblTheta');
+    const lblHalfTheta = document.getElementById('lblHalfTheta');
+    const sliderVx = document.getElementById('sliderVx');
+    const sliderVy = document.getElementById('sliderVy');
+    const sliderVz = document.getElementById('sliderVz');
+    const lblVx = document.getElementById('lblVx');
+    const lblVy = document.getElementById('lblVy');
+    const lblVz = document.getElementById('lblVz');
+    const valW = document.getElementById('valW');
+    const valX = document.getElementById('valX');
+    const valY = document.getElementById('valY');
+    const valZ = document.getElementById('valZ');
+    const mathEquation = document.getElementById('mathEquation');
+    const btnPlayPause = document.getElementById('btnPlayPause');
+    const playIcon = document.getElementById('playIcon');
+    const playText = document.getElementById('playText');
+    const btnResetRot = document.getElementById('btnResetRot');
+    const tab3D = document.getElementById('tab3D');
+    const tab2D = document.getElementById('tab2D');
+    const complexPlaneOverlay = document.getElementById('complexPlaneOverlay');
+    const svgComplexPlane = document.getElementById('svgComplexPlane');
+    const infoModal = document.getElementById('infoModal');
+    const infoModalBtn = document.getElementById('infoModalBtn');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const closeModalBottomBtn = document.getElementById('closeModalBottomBtn');
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const themeIcon = document.getElementById('themeIcon');
+
+    // --- Three.js Setup Variables ---
+    let scene, camera, renderer, controls;
+    let airplaneGroup, axisArrowHelper, rotationArcMesh;
+    let gridHelper;
+
+    function createDetailedAirplane() {
+      const plane = new THREE.Group();
+
+      // Materials with subtle metallic sheen
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color: 0x0284c7, // vibrant cyan-blue
+        metalness: 0.4,
+        roughness: 0.3
+      });
+      const wingMat = new THREE.MeshStandardMaterial({
+        color: 0x0369a1,
+        metalness: 0.3,
+        roughness: 0.4
+      });
+      const canopyMat = new THREE.MeshPhysicalMaterial({
+        color: 0xe0f2fe,
+        transmission: 0.7,
+        opacity: 0.9,
+        transparent: true,
+        roughness: 0.1
+      });
+      const accentMat = new THREE.MeshStandardMaterial({
+        color: 0xf59e0b, // amber
+        metalness: 0.5,
+        roughness: 0.2
+      });
+
+      // Fuselage (Main Body)
+      const bodyGeo = new THREE.ConeGeometry(0.7, 4.2, 32);
+      const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+      // Point forward along +Z axis
+      bodyMesh.rotation.x = Math.PI / 2;
+      plane.add(bodyMesh);
+
+      // Cockpit Canopy
+      const canopyGeo = new THREE.SphereGeometry(0.38, 16, 16);
+      canopyGeo.scale(0.8, 0.7, 2.2);
+      const canopyMesh = new THREE.Mesh(canopyGeo, canopyMat);
+      canopyMesh.position.set(0, 0.38, 0.2);
+      plane.add(canopyMesh);
+
+      // Main Wings (Swept-back)
+      const wingShape = new THREE.Shape();
+      wingShape.moveTo(0, 0);
+      wingShape.lineTo(3.2, -1.0);
+      wingShape.lineTo(3.0, -1.6);
+      wingShape.lineTo(0, -0.6);
+      wingShape.closePath();
+
+      const extrudeSettings = { depth: 0.08, bevelEnabled: true, bevelSegments: 2, steps: 1, bevelSize: 0.02, bevelThickness: 0.02 };
+      const rightWingGeo = new THREE.ExtrudeGeometry(wingShape, extrudeSettings);
+      const rightWing = new THREE.Mesh(rightWingGeo, wingMat);
+      rightWing.rotation.x = Math.PI / 2;
+      rightWing.position.set(0, 0.05, 0.5);
+      plane.add(rightWing);
+
+      // Left Wing (mirrored)
+      const leftWing = rightWing.clone();
+      leftWing.scale.set(-1, 1, 1);
+      plane.add(leftWing);
+
+      // Wingtip glowing lights
+      const tipLightGeo = new THREE.SphereGeometry(0.08, 8, 8);
+      const redTip = new THREE.Mesh(tipLightGeo, new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+      redTip.position.set(-3.1, 0.05, -0.7);
+      plane.add(redTip);
+
+      const greenTip = new THREE.Mesh(tipLightGeo, new THREE.MeshBasicMaterial({ color: 0x22c55e }));
+      greenTip.position.set(3.1, 0.05, -0.7);
+      plane.add(greenTip);
+
+      // Vertical Tail Fin
+      const finShape = new THREE.Shape();
+      finShape.moveTo(0, 0);
+      finShape.lineTo(0, 1.4);
+      finShape.lineTo(-0.6, 1.3);
+      finShape.lineTo(-1.1, 0);
+      finShape.closePath();
+
+      const finGeo = new THREE.ExtrudeGeometry(finShape, extrudeSettings);
+      const fin = new THREE.Mesh(finGeo, accentMat);
+      fin.rotation.y = -Math.PI / 2;
+      fin.position.set(0.04, 0.2, -1.2);
+      plane.add(fin);
+
+      // Horizontal Stabilizers
+      const stabShape = new THREE.Shape();
+      stabShape.moveTo(0, 0);
+      stabShape.lineTo(1.2, -0.4);
+      stabShape.lineTo(1.1, -0.8);
+      stabShape.lineTo(0, -0.3);
+      stabShape.closePath();
+
+      const stabGeo = new THREE.ExtrudeGeometry(stabShape, extrudeSettings);
+      const rightStab = new THREE.Mesh(stabGeo, wingMat);
+      rightStab.rotation.x = Math.PI / 2;
+      rightStab.position.set(0, 0.05, -1.3);
+      plane.add(rightStab);
+
+      const leftStab = rightStab.clone();
+      leftStab.scale.set(-1, 1, 1);
+      plane.add(leftStab);
+
+      // Jet Thruster Nozzle
+      const nozzleGeo = new THREE.CylinderGeometry(0.32, 0.42, 0.6, 16, 1, true);
+      const nozzleMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8, roughness: 0.2 });
+      const nozzle = new THREE.Mesh(nozzleGeo, nozzleMat);
+      nozzle.rotation.x = Math.PI / 2;
+      nozzle.position.set(0, 0, -2.1);
+      plane.add(nozzle);
+
+      // Thruster Exhaust Glow
+      const glowGeo = new THREE.ConeGeometry(0.26, 1.2, 16);
+      const glowMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.6 });
+      const glow = new THREE.Mesh(glowGeo, glowMat);
+      glow.rotation.x = -Math.PI / 2;
+      glow.position.set(0, 0, -2.7);
+      plane.add(glow);
+
+      return plane;
+    }
+
+    function initThreeScene() {
+      const container = document.getElementById('canvasContainer');
+      const canvas = document.getElementById('threeCanvas');
+
+      scene = new THREE.Scene();
+      const bgColor = state.isDark ? 0x060913 : 0xf1f5f9;
+      scene.background = new THREE.Color(bgColor);
+      scene.fog = new THREE.FogExp2(bgColor, 0.035);
+
+      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(4.5, 3.8, 6.0);
+
+      renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.06;
+      controls.maxDistance = 25;
+      controls.minDistance = 2;
+
+      // Lighting setup
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+      scene.add(ambientLight);
+
+      const dirLight1 = new THREE.DirectionalLight(0x93c5fd, 1.0);
+      dirLight1.position.set(5, 10, 7);
+      scene.add(dirLight1);
+
+      const dirLight2 = new THREE.DirectionalLight(0x06b6d4, 0.6);
+      dirLight2.position.set(-6, -4, -5);
+      scene.add(dirLight2);
+
+      // Grid helper for spatial reference
+      const gridColor1 = state.isDark ? 0x1e293b : 0x94a3b8;
+      const gridColor2 = state.isDark ? 0x0f172a : 0xcbd5e1;
+      gridHelper = new THREE.GridHelper(12, 24, gridColor1, gridColor2);
+      gridHelper.position.y = -2;
+      scene.add(gridHelper);
+
+      // XYZ Axes indicators
+      const axes = new THREE.AxesHelper(3.0);
+      axes.material.depthTest = false;
+      axes.renderOrder = 1;
+      scene.add(axes);
+
+      // Aircraft Model
+      airplaneGroup = createDetailedAirplane();
+      scene.add(airplaneGroup);
+
+      // Rotation Axis Visualizer Arrow (Amber)
+      const arrowDir = state.axis.clone();
+      axisArrowHelper = new THREE.ArrowHelper(arrowDir, new THREE.Vector3(0, 0, 0), 4.2, 0xfbbf24, 0.5, 0.25);
+      scene.add(axisArrowHelper);
+
+      // Handle Resize
+      window.addEventListener('resize', onWindowResize);
+    }
+
+    function onWindowResize() {
+      const container = document.getElementById('canvasContainer');
+      if (!container || !renderer || !camera) return;
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    }
+
+    function updateQuaternionMath() {
+      const thetaRad = (state.thetaDeg * Math.PI) / 180;
+      const halfTheta = thetaRad / 2;
+
+      // Axis vector must be normalized
+      const v = state.axis.clone().normalize();
+
+      // Quaternion components: q = cos(theta/2) + sin(theta/2) * (vx*i + vy*j + vz*k)
+      const w = Math.cos(halfTheta);
+      const sinHalf = Math.sin(halfTheta);
+      const x = v.x * sinHalf;
+      const y = v.y * sinHalf;
+      const z = v.z * sinHalf;
+
+      // Apply rotation to 3D Three.js Object using THREE.Quaternion
+      const q = new THREE.Quaternion(x, y, z, w);
+      airplaneGroup.setRotationFromQuaternion(q);
+
+      // Update Axis Helper Arrow
+      axisArrowHelper.setDirection(v);
+
+      // Update Dashboard Live Text
+      lblTheta.textContent = state.thetaDeg.toFixed(0);
+      lblHalfTheta.textContent = (state.thetaDeg / 2).toFixed(1);
+
+      valW.textContent = (w >= 0 ? '+' : '') + w.toFixed(3);
+      valX.textContent = (x >= 0 ? '+' : '') + x.toFixed(3);
+      valY.textContent = (y >= 0 ? '+' : '') + y.toFixed(3);
+      valZ.textContent = (z >= 0 ? '+' : '') + z.toFixed(3);
+
+      // Format dynamic KaTeX formula
+      if (window.katex) {
+        const signX = x >= 0 ? '+' : '-';
+        const signY = y >= 0 ? '+' : '-';
+        const signZ = z >= 0 ? '+' : '-';
+
+        const absX = Math.abs(x).toFixed(3);
+        const absY = Math.abs(y).toFixed(3);
+        const absZ = Math.abs(z).toFixed(3);
+        const formattedW = w.toFixed(3);
+
+        const texString = `q = \\underbrace{${formattedW}}_{\\cos(\\theta/2)} ` +
+                          `${signX} \\underbrace{${absX}\\,i}_{v_x \\sin(\\theta/2)} ` +
+                          `${signY} \\underbrace{${absY}\\,j}_{v_y \\sin(\\theta/2)} ` +
+                          `${signZ} \\underbrace{${absZ}\\,k}_{v_z \\sin(\\theta/2)}`;
+
+        katex.render(texString, mathEquation, {
+          throwOnError: false,
+          displayMode: true
+        });
+      }
+    }
+
+    function draw2DComplexPlane() {
+      if (!svgComplexPlane) return;
+
+      const size = 340;
+      const center = size / 2;
+      const radius = 120;
+      const rad = (state.complexAngleDeg * Math.PI) / 180;
+
+      const cosVal = Math.cos(rad);
+      const sinVal = Math.sin(rad);
+
+      const px = center + cosVal * radius;
+      const py = center - sinVal * radius; // Invert SVG y-axis
+
+      // Update UI readout
+      document.getElementById('compRealVal').textContent = (cosVal >= 0 ? '+' : '') + cosVal.toFixed(3);
+      document.getElementById('compImagVal').textContent = (sinVal >= 0 ? '+' : '') + sinVal.toFixed(3);
+
+      const circleStroke = state.isDark ? "#1e293b" : "#cbd5e1";
+      const axisStroke = state.isDark ? "#475569" : "#94a3b8";
+      const textFill = state.isDark ? "#94a3b8" : "#475569";
+      const subTextFill = state.isDark ? "#64748b" : "#94a3b8";
+      const vectorColor = state.isDark ? "#06b6d4" : "#0284c7";
+
+      // Build SVG Markup
+      svgComplexPlane.innerHTML = `
+        <!-- Coordinate Grid Circles -->
+        <circle cx="${center}" cy="${center}" r="${radius}" fill="none" stroke="${circleStroke}" stroke-width="2" stroke-dasharray="4 4" />
+        <circle cx="${center}" cy="${center}" r="${radius * 0.5}" fill="none" stroke="${circleStroke}" stroke-width="1" />
+        
+        <!-- Axes -->
+        <line x1="20" y1="${center}" x2="${size - 20}" y2="${center}" stroke="${axisStroke}" stroke-width="1.5" />
+        <line x1="${center}" y1="20" x2="${center}" y2="${size - 20}" stroke="${axisStroke}" stroke-width="1.5" />
+
+        <!-- Axis Labels -->
+        <text x="${size - 30}" y="${center - 8}" fill="${textFill}" font-size="11" font-family="monospace">実軸 Re</text>
+        <text x="${center + 8}" y="32" fill="${textFill}" font-size="11" font-family="monospace">虚軸 Im (i)</text>
+        <text x="${center + radius + 6}" y="${center + 14}" fill="${subTextFill}" font-size="10" font-family="monospace">+1</text>
+        <text x="${center - radius - 20}" y="${center + 14}" fill="${subTextFill}" font-size="10" font-family="monospace">-1</text>
+        <text x="${center + 8}" y="${center - radius - 4}" fill="${subTextFill}" font-size="10" font-family="monospace">+i</text>
+        <text x="${center + 8}" y="${center + radius + 14}" fill="${subTextFill}" font-size="10" font-family="monospace">-i</text>
+
+        <!-- Angle Arc Sector -->
+        <path d="M ${center} ${center} L ${center + 35} ${center} A 35 35 0 ${state.complexAngleDeg > 180 ? 1 : 0} 0 ${center + 35 * Math.cos(rad)} ${center - 35 * Math.sin(rad)} Z" 
+              fill="rgba(6, 182, 212, 0.15)" stroke="${vectorColor}" stroke-width="1" />
+
+        <!-- Vector Line -->
+        <line x1="${center}" y1="${center}" x2="${px}" y2="${py}" stroke="${vectorColor}" stroke-width="3" stroke-linecap="round" />
+
+        <!-- Projections on Real and Imag axes -->
+        <line x1="${px}" y1="${py}" x2="${px}" y2="${center}" stroke="#ec4899" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.7" />
+        <line x1="${px}" y1="${py}" x2="${center}" y2="${py}" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.7" />
+
+        <!-- Rotating Point Node -->
+        <circle cx="${px}" cy="${py}" r="7" fill="${vectorColor}" stroke="#ffffff" stroke-width="2" class="glow-cyan" />
+        
+        <!-- Label near point -->
+        <text x="${px + 10}" y="${py - 10}" fill="${vectorColor}" font-size="12" font-weight="bold" font-family="monospace">
+          e^{i\\theta} (${state.complexAngleDeg.toFixed(0)}°)
+        </text>
+      `;
+    }
+
+    function toggleTheme() {
+      state.isDark = !state.isDark;
+      const htmlBody = document.body;
+
+      if (state.isDark) {
+        htmlBody.classList.remove('light-mode');
+        if (themeIcon) themeIcon.className = 'fa-solid fa-sun text-amber-400 text-base';
+        if (themeToggleBtn) themeToggleBtn.title = 'ライトモードに切替';
+      } else {
+        htmlBody.classList.add('light-mode');
+        if (themeIcon) themeIcon.className = 'fa-solid fa-moon text-slate-700 text-base';
+        if (themeToggleBtn) themeToggleBtn.title = 'ダークモードに切替';
+      }
+
+      // Update Three.js background and fog
+      if (scene) {
+        const bgHex = state.isDark ? 0x060913 : 0xf1f5f9;
+        scene.background.setHex(bgHex);
+        scene.fog.color.setHex(bgHex);
+
+        // Update GridHelper
+        if (gridHelper) {
+          scene.remove(gridHelper);
+          const gridColor1 = state.isDark ? 0x1e293b : 0x94a3b8;
+          const gridColor2 = state.isDark ? 0x0f172a : 0xcbd5e1;
+          gridHelper = new THREE.GridHelper(12, 24, gridColor1, gridColor2);
+          gridHelper.position.y = -2;
+          scene.add(gridHelper);
+        }
+      }
+
+      // Re-draw 2D complex plane with updated palette
+      draw2DComplexPlane();
+    }
+
+    function setupComplexPlaneInteraction() {
+      let isDragging = false;
+
+      function updateFromPointer(e) {
+        const rect = svgComplexPlane.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const dx = clientX - (rect.left + rect.width / 2);
+        const dy = (rect.top + rect.height / 2) - clientY; // svg inverted y
+
+        let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+        if (angle < 0) angle += 360;
+
+        state.complexAngleDeg = angle;
+        draw2DComplexPlane();
+      }
+
+      svgComplexPlane.addEventListener('pointerdown', (e) => {
+        isDragging = true;
+        svgComplexPlane.setPointerCapture(e.pointerId);
+        updateFromPointer(e);
+      });
+
+      svgComplexPlane.addEventListener('pointermove', (e) => {
+        if (!isDragging) return;
+        updateFromPointer(e);
+      });
+
+      svgComplexPlane.addEventListener('pointerup', () => { isDragging = false; });
+      svgComplexPlane.addEventListener('pointercancel', () => { isDragging = false; });
+    }
+
+    function setupEventListeners() {
+      // Rotation angle slider
+      sliderTheta.addEventListener('input', (e) => {
+        state.thetaDeg = parseFloat(e.target.value);
+        updateQuaternionMath();
+      });
+
+      // Axis sliders
+      function onAxisSliderChange() {
+        let vx = parseFloat(sliderVx.value);
+        let vy = parseFloat(sliderVy.value);
+        let vz = parseFloat(sliderVz.value);
+
+        // Prevent zero vector
+        if (vx === 0 && vy === 0 && vz === 0) {
+          vy = 1;
+          sliderVy.value = 1;
+        }
+
+        const v = new THREE.Vector3(vx, vy, vz).normalize();
+        state.axis.copy(v);
+
+        lblVx.textContent = v.x.toFixed(2);
+        lblVy.textContent = v.y.toFixed(2);
+        lblVz.textContent = v.z.toFixed(2);
+
+        updateQuaternionMath();
+      }
+
+      sliderVx.addEventListener('input', onAxisSliderChange);
+      sliderVy.addEventListener('input', onAxisSliderChange);
+      sliderVz.addEventListener('input', onAxisSliderChange);
+
+      // Axis Preset Buttons
+      document.querySelectorAll('.btn-preset').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const parts = btn.dataset.axis.split(',').map(Number);
+          const v = new THREE.Vector3(parts[0], parts[1], parts[2]).normalize();
+          state.axis.copy(v);
+
+          sliderVx.value = v.x;
+          sliderVy.value = v.y;
+          sliderVz.value = v.z;
+          lblVx.textContent = v.x.toFixed(2);
+          lblVy.textContent = v.y.toFixed(2);
+          lblVz.textContent = v.z.toFixed(2);
+
+          updateQuaternionMath();
+        });
+      });
+
+      // Play/Pause auto rotation
+      btnPlayPause.addEventListener('click', () => {
+        state.isPlaying = !state.isPlaying;
+        if (state.isPlaying) {
+          playIcon.className = 'fa-solid fa-pause text-amber-400';
+          playText.textContent = '停止';
+          btnPlayPause.classList.add('border-cyan-500');
+        } else {
+          playIcon.className = 'fa-solid fa-play text-cyan-400';
+          playText.textContent = '自動回転';
+          btnPlayPause.classList.remove('border-cyan-500');
+        }
+      });
+
+      // Reset Rotation
+      btnResetRot.addEventListener('click', () => {
+        state.thetaDeg = 0;
+        sliderTheta.value = 0;
+        updateQuaternionMath();
+      });
+
+      // Mode switching tabs
+      tab3D.addEventListener('click', () => {
+        state.activeTab = '3d';
+        tab3D.className = 'px-3 py-1.5 rounded-md bg-cyan-600 text-white transition flex items-center gap-1.5 shadow-sm';
+        tab2D.className = 'px-3 py-1.5 rounded-md text-slate-400 hover:text-white transition flex items-center gap-1.5';
+        complexPlaneOverlay.classList.add('hidden');
+      });
+
+      tab2D.addEventListener('click', () => {
+        state.activeTab = '2d';
+        tab2D.className = 'px-3 py-1.5 rounded-md bg-cyan-600 text-white transition flex items-center gap-1.5 shadow-sm';
+        tab3D.className = 'px-3 py-1.5 rounded-md text-slate-400 hover:text-white transition flex items-center gap-1.5';
+        complexPlaneOverlay.classList.remove('hidden');
+        draw2DComplexPlane();
+      });
+
+      // Educational Modal
+      infoModalBtn.addEventListener('click', () => infoModal.classList.remove('hidden'));
+      closeModalBtn.addEventListener('click', () => infoModal.classList.add('hidden'));
+      closeModalBottomBtn.addEventListener('click', () => infoModal.classList.add('hidden'));
+      infoModal.addEventListener('click', (e) => {
+        if (e.target === infoModal) infoModal.classList.add('hidden');
+      });
+
+      // Theme toggle button listener
+      if (themeToggleBtn) {
+        themeToggleBtn.addEventListener('click', toggleTheme);
+      }
+
+      setupComplexPlaneInteraction();
+    }
+
+    let lastTime = performance.now();
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const now = performance.now();
+      const delta = (now - lastTime) / 1000;
+      lastTime = now;
+
+      // Handle continuous rotation during playback
+      if (state.isPlaying) {
+        state.thetaDeg = (state.thetaDeg + 60 * delta) % 360;
+        sliderTheta.value = state.thetaDeg;
+        updateQuaternionMath();
+
+        if (state.activeTab === '2d') {
+          state.complexAngleDeg = (state.complexAngleDeg + 60 * delta) % 360;
+          draw2DComplexPlane();
+        }
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    // Initialize application on window load
+    window.onload = function() {
+      initThreeScene();
+      setupEventListeners();
+      updateQuaternionMath();
+      draw2DComplexPlane();
+
+      // Trigger initial KaTeX rendering if library loaded
+      if (window.renderMathInElement) {
+        renderMathInElement(document.body, {
+          delimiters: [
+            { left: "$$", right: "$$", display: true },
+            { left: "$", right: "$", display: false }
+          ]
+        });
+      }
+
+      // Start rendering loop
+      animate();
+    };
+  </script>
+</body>
+</html>
