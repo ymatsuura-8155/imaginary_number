@@ -137,13 +137,23 @@
     <div id="canvasContainer" class="flex-1 relative w-full h-[50vh] lg:h-full bg-slate-950 overflow-hidden">
       <canvas id="threeCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
 
-      <!-- Overlay tips -->
-      <div class="absolute top-4 left-4 pointer-events-none flex flex-col gap-1.5 z-10">
-        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-900/80 border border-slate-700/60 backdrop-blur text-xs text-slate-300">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          ドラッグで視点回転 / スクロールでズーム
+      <!-- Overlay tips & Interaction Mode Switcher -->
+      <div class="absolute top-4 left-4 flex flex-col gap-2 z-10">
+        <!-- Control Mode Switcher -->
+        <div class="inline-flex bg-slate-900/90 border border-slate-700/80 p-1 rounded-xl backdrop-blur shadow-lg">
+          <button id="btnModeModel" class="px-3 py-1.5 rounded-lg bg-cyan-600 text-white text-xs font-semibold flex items-center gap-1.5 transition shadow">
+            <i class="fa-solid fa-plane"></i> 機体を直接回転
+          </button>
+          <button id="btnModeCamera" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-video"></i> 視点カメラ移動
+          </button>
         </div>
-        <div class="text-[11px] text-slate-400 flex items-center gap-3 px-2">
+
+        <div id="dragTipText" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-900/80 border border-slate-700/60 backdrop-blur text-xs text-slate-300 pointer-events-none">
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+          <span>ドラッグで機体を3D回転 ➔ 計算値がリアルタイム変動</span>
+        </div>
+        <div class="text-[11px] text-slate-400 flex items-center gap-3 px-2 pointer-events-none">
           <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-red-500"></span> X (赤)</span>
           <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-green-500"></span> Y (緑)</span>
           <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-blue-500"></span> Z (青)</span>
@@ -390,7 +400,8 @@
       isPlaying: false,
       activeTab: '3d', // '3d' or '2d'
       complexAngleDeg: 0,
-      isDark: true
+      isDark: true,
+      controlMode: 'model' // 'model' (direct plane rotation) or 'camera' (OrbitControls)
     };
 
     // --- DOM Elements ---
@@ -422,6 +433,9 @@
     const closeModalBottomBtn = document.getElementById('closeModalBottomBtn');
     const themeToggleBtn = document.getElementById('themeToggleBtn');
     const themeIcon = document.getElementById('themeIcon');
+    const btnModeModel = document.getElementById('btnModeModel');
+    const btnModeCamera = document.getElementById('btnModeCamera');
+    const dragTipText = document.getElementById('dragTipText');
 
     // --- Three.js Setup Variables ---
     let scene, camera, renderer, controls;
@@ -571,6 +585,8 @@
       controls.dampingFactor = 0.06;
       controls.maxDistance = 25;
       controls.minDistance = 2;
+      // Start with model rotation mode enabled (orbit controls disabled)
+      controls.enabled = (state.controlMode === 'camera');
 
       // Lighting setup
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
@@ -618,6 +634,81 @@
       renderer.setSize(container.clientWidth, container.clientHeight);
     }
 
+    // Update displays from current Quaternion and Axis
+    function renderMathValues(q, axis, thetaDeg) {
+      lblTheta.textContent = thetaDeg.toFixed(0);
+      lblHalfTheta.textContent = (thetaDeg / 2).toFixed(1);
+
+      valW.textContent = (q.w >= 0 ? '+' : '') + q.w.toFixed(3);
+      valX.textContent = (q.x >= 0 ? '+' : '') + q.x.toFixed(3);
+      valY.textContent = (q.y >= 0 ? '+' : '') + q.y.toFixed(3);
+      valZ.textContent = (q.z >= 0 ? '+' : '') + q.z.toFixed(3);
+
+      if (window.katex) {
+        const signX = q.x >= 0 ? '+' : '-';
+        const signY = q.y >= 0 ? '+' : '-';
+        const signZ = q.z >= 0 ? '+' : '-';
+
+        const absX = Math.abs(q.x).toFixed(3);
+        const absY = Math.abs(q.y).toFixed(3);
+        const absZ = Math.abs(q.z).toFixed(3);
+        const formattedW = q.w.toFixed(3);
+
+        const texString = `q = \\underbrace{${formattedW}}_{\\cos(\\theta/2)} ` +
+                          `${signX} \\underbrace{${absX}\\,i}_{v_x \\sin(\\theta/2)} ` +
+                          `${signY} \\underbrace{${absY}\\,j}_{v_y \\sin(\\theta/2)} ` +
+                          `${signZ} \\underbrace{${absZ}\\,k}_{v_z \\sin(\\theta/2)}`;
+
+        katex.render(texString, mathEquation, {
+          throwOnError: false,
+          displayMode: true
+        });
+      }
+    }
+
+    // Called when the 3D model is rotated directly via dragging
+    function syncFromModelQuaternion(q) {
+      q.normalize();
+      // Ensure positive real part w for unique representation
+      if (q.w < 0) {
+        q.x = -q.x;
+        q.y = -q.y;
+        q.z = -q.z;
+        q.w = -q.w;
+      }
+
+      const clampedW = Math.max(-1, Math.min(1, q.w));
+      const halfTheta = Math.acos(clampedW);
+      const thetaDeg = (halfTheta * 2 * 180) / Math.PI;
+
+      const sinHalf = Math.sin(halfTheta);
+      const axis = new THREE.Vector3(0, 1, 0);
+      if (sinHalf > 0.001) {
+        axis.set(q.x / sinHalf, q.y / sinHalf, q.z / sinHalf).normalize();
+      } else {
+        axis.copy(state.axis);
+      }
+
+      state.thetaDeg = thetaDeg;
+      state.axis.copy(axis);
+
+      // Sync slider UI elements with calculated values
+      sliderTheta.value = thetaDeg;
+      sliderVx.value = axis.x;
+      sliderVy.value = axis.y;
+      sliderVz.value = axis.z;
+      lblVx.textContent = axis.x.toFixed(2);
+      lblVy.textContent = axis.y.toFixed(2);
+      lblVz.textContent = axis.z.toFixed(2);
+
+      // Update rotation axis helper
+      if (axisArrowHelper) {
+        axisArrowHelper.setDirection(axis);
+      }
+
+      renderMathValues(q, axis, thetaDeg);
+    }
+
     function updateQuaternionMath() {
       const thetaRad = (state.thetaDeg * Math.PI) / 180;
       const halfTheta = thetaRad / 2;
@@ -634,41 +725,16 @@
 
       // Apply rotation to 3D Three.js Object using THREE.Quaternion
       const q = new THREE.Quaternion(x, y, z, w);
-      airplaneGroup.setRotationFromQuaternion(q);
+      if (airplaneGroup) {
+        airplaneGroup.setRotationFromQuaternion(q);
+      }
 
       // Update Axis Helper Arrow
-      axisArrowHelper.setDirection(v);
-
-      // Update Dashboard Live Text
-      lblTheta.textContent = state.thetaDeg.toFixed(0);
-      lblHalfTheta.textContent = (state.thetaDeg / 2).toFixed(1);
-
-      valW.textContent = (w >= 0 ? '+' : '') + w.toFixed(3);
-      valX.textContent = (x >= 0 ? '+' : '') + x.toFixed(3);
-      valY.textContent = (y >= 0 ? '+' : '') + y.toFixed(3);
-      valZ.textContent = (z >= 0 ? '+' : '') + z.toFixed(3);
-
-      // Format dynamic KaTeX formula
-      if (window.katex) {
-        const signX = x >= 0 ? '+' : '-';
-        const signY = y >= 0 ? '+' : '-';
-        const signZ = z >= 0 ? '+' : '-';
-
-        const absX = Math.abs(x).toFixed(3);
-        const absY = Math.abs(y).toFixed(3);
-        const absZ = Math.abs(z).toFixed(3);
-        const formattedW = w.toFixed(3);
-
-        const texString = `q = \\underbrace{${formattedW}}_{\\cos(\\theta/2)} ` +
-                          `${signX} \\underbrace{${absX}\\,i}_{v_x \\sin(\\theta/2)} ` +
-                          `${signY} \\underbrace{${absY}\\,j}_{v_y \\sin(\\theta/2)} ` +
-                          `${signZ} \\underbrace{${absZ}\\,k}_{v_z \\sin(\\theta/2)}`;
-
-        katex.render(texString, mathEquation, {
-          throwOnError: false,
-          displayMode: true
-        });
+      if (axisArrowHelper) {
+        axisArrowHelper.setDirection(v);
       }
+
+      renderMathValues(q, v, state.thetaDeg);
     }
 
     function draw2DComplexPlane() {
@@ -850,6 +916,72 @@
 
           updateQuaternionMath();
         });
+      });
+
+      // Direct Model Drag Interaction on 3D Canvas
+      const canvas = document.getElementById('threeCanvas');
+      let isDraggingModel = false;
+      let prevMousePos = { x: 0, y: 0 };
+
+      canvas.addEventListener('pointerdown', (e) => {
+        if (state.controlMode !== 'model') return;
+        isDraggingModel = true;
+        prevMousePos = { x: e.clientX, y: e.clientY };
+        canvas.setPointerCapture(e.pointerId);
+      });
+
+      canvas.addEventListener('pointermove', (e) => {
+        if (!isDraggingModel || state.controlMode !== 'model' || !airplaneGroup) return;
+
+        const deltaX = e.clientX - prevMousePos.x;
+        const deltaY = e.clientY - prevMousePos.y;
+        prevMousePos = { x: e.clientX, y: e.clientY };
+
+        if (deltaX === 0 && deltaY === 0) return;
+
+        // Compute rotation axis relative to current camera perspective
+        const camRight = new THREE.Vector3();
+        const camUp = new THREE.Vector3();
+        camera.matrixWorld.extractBasis(camRight, camUp, new THREE.Vector3());
+
+        // Screen motion into world-space angular rotation
+        const rotAxis = new THREE.Vector3()
+          .addScaledVector(camUp, deltaX)
+          .addScaledVector(camRight, deltaY)
+          .normalize();
+
+        const moveDist = Math.hypot(deltaX, deltaY);
+        const rotAngle = moveDist * 0.008; // Rotation sensitivity
+
+        // Incremental rotation quaternion
+        const deltaQ = new THREE.Quaternion().setFromAxisAngle(rotAxis, rotAngle);
+
+        // Apply delta rotation to current airplane orientation
+        airplaneGroup.quaternion.premultiply(deltaQ);
+
+        // Immediately update all math readouts, sliders, and axes from the new model orientation!
+        syncFromModelQuaternion(airplaneGroup.quaternion);
+      });
+
+      const stopModelDrag = () => { isDraggingModel = false; };
+      canvas.addEventListener('pointerup', stopModelDrag);
+      canvas.addEventListener('pointercancel', stopModelDrag);
+
+      // Mode Switch Buttons (Model direct rotation vs Orbit camera)
+      btnModeModel.addEventListener('click', () => {
+        state.controlMode = 'model';
+        controls.enabled = false;
+        btnModeModel.className = 'px-3 py-1.5 rounded-lg bg-cyan-600 text-white text-xs font-semibold flex items-center gap-1.5 transition shadow';
+        btnModeCamera.className = 'px-3 py-1.5 rounded-lg text-slate-400 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition';
+        dragTipText.innerHTML = '<span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span><span>ドラッグで機体を3D回転 ➔ 計算値がリアルタイム変動</span>';
+      });
+
+      btnModeCamera.addEventListener('click', () => {
+        state.controlMode = 'camera';
+        controls.enabled = true;
+        btnModeCamera.className = 'px-3 py-1.5 rounded-lg bg-cyan-600 text-white text-xs font-semibold flex items-center gap-1.5 transition shadow';
+        btnModeModel.className = 'px-3 py-1.5 rounded-lg text-slate-400 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition';
+        dragTipText.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span><span>ドラッグで視点回転 / スクロールでズーム</span>';
       });
 
       // Play/Pause auto rotation
