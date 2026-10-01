@@ -60,36 +60,172 @@
       color: #0f172a;
     }
     body.light-mode header {
-      background-color: rgba(255, 255, 255, 0.9);
+      background-color: rgba(255, 255, 255, 0.92);
       border-color: #e2e8f0;
     }
     body.light-mode header h1 {
       color: #0f172a;
     }
-    body.light-mode .panel-backdrop,
+    body.light-mode header .bg-slate-950 {
+      background-color: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+    body.light-mode #canvasContainer {
+      background-color: #f1f5f9;
+    }
     body.light-mode main > div:last-child {
-      background-color: rgba(255, 255, 255, 0.95);
+      background-color: #ffffff;
       border-color: #e2e8f0;
       color: #1e293b;
     }
-    body.light-mode .bg-slate-900,
-    body.light-mode .bg-slate-950,
-    body.light-mode .bg-slate-900\/80,
-    body.light-mode .bg-slate-950\/60 {
-      background-color: #f1f5f9 !important;
+
+    /* Canvas overlays & Buttons in light mode */
+    body.light-mode #canvasContainer .bg-slate-900\/90,
+    body.light-mode #canvasContainer .bg-slate-900\/80 {
+      background-color: rgba(255, 255, 255, 0.92) !important;
       border-color: #cbd5e1 !important;
       color: #1e293b !important;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
     }
-    body.light-mode .text-slate-200,
-    body.light-mode .text-slate-300,
-    body.light-mode .text-slate-100 {
+    body.light-mode #btnPlayPause,
+    body.light-mode #btnResetRot {
+      background-color: rgba(255, 255, 255, 0.92) !important;
+      border-color: #cbd5e1 !important;
       color: #0f172a !important;
+    }
+    body.light-mode #btnPlayPause:hover,
+    body.light-mode #btnResetRot:hover {
+      background-color: #f1f5f9 !important;
+    }
+    body.light-mode #dragTipText {
+      color: #1e293b !important;
+    }
+    body.light-mode #canvasContainer .text-slate-400 {
+      color: #334155 !important;
+      font-weight: 500;
+    }
+
+    /* Dashboard headers & KaTeX Box in light mode */
+    body.light-mode .sticky.top-0 {
+      background-color: rgba(255, 255, 255, 0.95) !important;
+      border-color: #e2e8f0 !important;
+    }
+    body.light-mode #mathEquation {
+      background-color: #f8fafc;
+      border-color: #e2e8f0;
+      color: #0f172a !important;
+    }
+    body.light-mode #mathEquation * {
+      color: #0f172a !important;
+    }
+    body.light-mode .sticky.top-0 .bg-cyan-950\/70 {
+      background-color: #ecfeff !important;
+      border-color: #a5f3fc !important;
+      color: #0e7490 !important;
+    }
+
+    /* 4-Component Quaternion live grid cards */
+    body.light-mode .sticky.top-0 .grid > div {
+      background-color: #f8fafc !important;
+      border-color: #e2e8f0 !important;
+    }
+    body.light-mode #valW,
+    body.light-mode #valX,
+    body.light-mode #valY,
+    body.light-mode #valZ {
+      color: #0f172a !important;
+    }
+
+    /* Slider track & general text in light mode */
+    body.light-mode .text-slate-300,
+    body.light-mode .text-slate-200 {
+      color: #1e293b !important;
     }
     body.light-mode .text-slate-400 {
       color: #475569 !important;
     }
-    body.light-mode #canvasContainer {
-      background-color: #f1f5f9;
+    body.light-mode .text-slate-500 {
+      color: #64748b !important;
+    }
+    body.light-mode input[type="range"] {
+      background-color: #e2e8f0 !important;
+    }
+
+    /* Preset Buttons in light mode */
+    body.light-mode .btn-preset {
+      background-color: #f8fafc !important;
+      border-color: #cbd5e1 !important;
+      color: #1e293b !important;
+    }
+    body.light-mode .btn-preset:hover {
+      background-color: #e2e8f0 !important;
+    }
+    body.light-mode .btn-preset[data-axis="1,1,1"] {
+      background-color: #ecfeff !important;
+      border-color: #67e8f9 !important;
+      color: #0891b2 !important;
+    }
+    body.light-mode .btn-preset[data-axis="1,1,1"]:hover {
+      background-color: #cffafe !important;
+    }
+
+    /* Axis Sliders Container */
+    body.light-mode .space-y-3 .bg-slate-950\/60 {
+      background-color: #f8fafc !important;
+      border-color: #e2e8f0 !important;
+    }
+
+    /* Explanation Cards in light mode */
+    body.light-mode .space-y-5 > .bg-slate-900\/80 {
+      background-color: #f8fafc !important;
+      border-color: #e2e8f0 !important;
+      color: #334155 !important;
+    }
+    body.light-mode .space-y-5 > .bg-slate-900\/80 .text-cyan-300 {
+      color: #0284c7 !important;
+    }
+    body.light-mode .space-y-5 > .bg-slate-900\/80 .bg-slate-950 {
+      background-color: #ffffff !important;
+      border-color: #cbd5e1 !important;
+      color: #0369a1 !important;
+    }
+
+    /* Gimbal Lock Explanation Box in light mode */
+    body.light-mode .border-indigo-950\/60 {
+      background-color: #eef2ff !important;
+      border-color: #c7d2fe !important;
+      color: #3730a3 !important;
+    }
+    body.light-mode .border-indigo-950\/60 .text-indigo-300 {
+      color: #312e81 !important;
+    }
+    body.light-mode .border-indigo-950\/60 i {
+      color: #4f46e5 !important;
+    }
+
+    /* Info Modal in light mode */
+    body.light-mode #infoModal > div {
+      background-color: #ffffff !important;
+      border-color: #cbd5e1 !important;
+      color: #1e293b !important;
+    }
+    body.light-mode #infoModal .border-slate-800 {
+      border-color: #e2e8f0 !important;
+    }
+    body.light-mode #infoModal h2 {
+      color: #0f172a !important;
+    }
+    body.light-mode #infoModal h3 {
+      color: #0369a1 !important;
+    }
+    body.light-mode #infoModal p,
+    body.light-mode #infoModal ul {
+      color: #334155 !important;
+    }
+    body.light-mode #infoModal .bg-slate-950 {
+      background-color: #f8fafc !important;
+      border-color: #cbd5e1 !important;
+      color: #b45309 !important;
     }
   </style>
 </head>
